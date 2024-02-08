@@ -826,6 +826,13 @@ impl Vm {
             vm_config.lock().unwrap().is_sev_snp_enabled()
         };
 
+        #[cfg(feature = "arm_rme")]
+        let arm_rme_enabled = if snapshot.is_some() {
+            false
+        } else {
+            vm_config.lock().unwrap().is_arm_rme_enabled()
+        };
+
         let vm = Self::create_hypervisor_vm(
             &hypervisor,
             #[cfg(feature = "tdx")]
@@ -834,6 +841,8 @@ impl Vm {
             sev_snp_enabled,
             #[cfg(feature = "sev_snp")]
             vm_config.lock().unwrap().memory.total_size(),
+            #[cfg(feature = "arm_rme")]
+            arm_rme_enabled,
         )?;
 
         let phys_bits = physical_bits(&hypervisor, vm_config.lock().unwrap().cpus.max_phys_bits);
@@ -861,6 +870,8 @@ impl Vm {
                 phys_bits,
                 #[cfg(feature = "tdx")]
                 tdx_enabled,
+                #[cfg(feature = "arm_rme")]
+                arm_rme_enabled,
                 None,
                 None,
                 #[cfg(target_arch = "x86_64")]
@@ -894,6 +905,7 @@ impl Vm {
         #[cfg(feature = "tdx")] tdx_enabled: bool,
         #[cfg(feature = "sev_snp")] sev_snp_enabled: bool,
         #[cfg(feature = "sev_snp")] mem_size: u64,
+        #[cfg(feature = "arm_rme")] arm_rme_enabled: bool,
     ) -> Result<Arc<dyn hypervisor::Vm>> {
         hypervisor.check_required_extensions().unwrap();
 
@@ -902,6 +914,8 @@ impl Vm {
                 let confidential_vm = tdx_enabled;
             } else if #[cfg(feature = "sev_snp")] {
                 let confidential_vm = sev_snp_enabled;
+            } else if #[cfg(feature = "arm_rme")] {
+                let confidential_vm = arm_rme_enabled;
             } else {
                 let confidential_vm = false;
             }
@@ -2278,6 +2292,11 @@ impl Vm {
         // Resume the vm for MSHV
         if current_state == VmState::Created {
             self.vm.resume().map_err(Error::ResumeVm)?;
+        }
+
+        #[cfg(feature = "arm_rme")]
+        if self.config.lock().unwrap().is_arm_rme_enabled() {
+            todo!("finalize realm");
         }
 
         self.cpu_manager
