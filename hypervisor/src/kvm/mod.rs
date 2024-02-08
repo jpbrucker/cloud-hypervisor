@@ -142,6 +142,9 @@ const TDG_VP_VMCALL_INVALID_OPERAND: u64 = 0x8000000000000000;
 #[cfg(feature = "tdx")]
 ioctl_iowr_nr!(KVM_MEMORY_ENCRYPT_OP, KVMIO, 0xba, std::os::raw::c_ulong);
 
+#[cfg(feature = "arm_rmi")]
+const KVM_VM_TYPE_ARM_REALM: u64 = 1 << 8;
+
 #[cfg(feature = "tdx")]
 #[repr(u32)]
 enum TdxCommand {
@@ -432,6 +435,8 @@ pub struct KvmVm {
     #[cfg(target_arch = "x86_64")]
     msrs: Vec<MsrEntry>,
     dirty_log_slots: Arc<RwLock<HashMap<u32, KvmDirtyLogSlot>>>,
+    #[cfg(feature = "arm_rmi")]
+    arm_rmi_enabled: bool,
 }
 
 impl KvmVm {
@@ -589,6 +594,8 @@ impl vm::Vm for KvmVm {
             hyperv_synic: AtomicBool::new(false),
             #[cfg(target_arch = "x86_64")]
             xsave_size,
+            #[cfg(feature = "arm_rmi")]
+            arm_rmi_enabled: self.arm_rmi_enabled,
         };
         Ok(Box::new(vcpu))
     }
@@ -1213,7 +1220,18 @@ impl hypervisor::Hypervisor for KvmHypervisor {
         // avoid unnecessary VM creation failures.
         #[cfg(target_arch = "aarch64")]
         if self.kvm.check_extension(Cap::ArmVmIPASize) {
-            vm_type = self.kvm.get_host_ipa_limit().try_into().unwrap();
+            #[allow(unused_mut)]
+            let mut ipa_size: u64 = self.kvm.get_host_ipa_limit().try_into().unwrap();
+            // FIXME: KVM doesn't support LPA2 for Realm guests at the
+            // moment.
+            #[cfg(feature = "arm_rmi")]
+            if _config.arm_rmi_enabled {
+                vm_type = KVM_VM_TYPE_ARM_REALM;
+                if ipa_size > 48 {
+                    ipa_size = 48;
+                }
+            }
+            vm_type |= ipa_size;
         }
 
         #[cfg(feature = "tdx")]
@@ -1268,6 +1286,8 @@ impl hypervisor::Hypervisor for KvmHypervisor {
             Ok(Arc::new(KvmVm {
                 fd: vm_fd,
                 dirty_log_slots: Arc::new(RwLock::new(HashMap::new())),
+                #[cfg(feature = "arm_rmi")]
+                arm_rmi_enabled: _config.arm_rmi_enabled,
             }))
         }
     }
@@ -1352,6 +1372,8 @@ pub struct KvmVcpu {
     hyperv_synic: AtomicBool,
     #[cfg(target_arch = "x86_64")]
     xsave_size: i32,
+    #[cfg(feature = "arm_rmi")]
+    arm_rmi_enabled: bool,
 }
 
 /// Implementation of Vcpu trait for KVM
