@@ -996,6 +996,7 @@ impl MemoryManager {
         prefault: Option<bool>,
         phys_bits: u8,
         #[cfg(feature = "tdx")] tdx_enabled: bool,
+        #[cfg(feature = "arm_rmi")] arm_rmi_enabled: bool,
         restore_data: Option<&MemoryManagerSnapshotData>,
         existing_memory_files: HashMap<u32, File>,
     ) -> Result<Arc<Mutex<MemoryManager>>, Error> {
@@ -1263,6 +1264,8 @@ impl MemoryManager {
                 Some(prefault),
                 phys_bits,
                 #[cfg(feature = "tdx")]
+                false,
+                #[cfg(feature = "arm_rmi")]
                 false,
                 Some(&mem_snapshot),
                 Default::default(),

@@ -753,6 +753,9 @@ components:
         sev_snp:
           type: boolean
           default: false
+        arm_rmi:
+          type: boolean
+          default: false
 
     MemoryZoneConfig:
       required:

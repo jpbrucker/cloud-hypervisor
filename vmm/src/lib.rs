@@ -220,6 +220,8 @@ impl From<&VmConfig> for hypervisor::HypervisorVmConfig {
             sev_snp_enabled: _value.is_sev_snp_enabled(),
             #[cfg(feature = "sev_snp")]
             mem_size: _value.memory.total_size(),
+            #[cfg(feature = "arm_rmi")]
+            arm_rmi_enabled: _value.is_arm_rmi_enabled(),
             nested: _value.cpus.nested,
         }
     }
@@ -1046,6 +1048,8 @@ impl Vmm {
             None,
             phys_bits,
             #[cfg(feature = "tdx")]
+            false,
+            #[cfg(feature = "arm_rmi")]
             false,
             Some(&vm_migration_config.memory_manager_data),
             existing_memory_files,

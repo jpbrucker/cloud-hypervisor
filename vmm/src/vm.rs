@@ -1081,6 +1081,13 @@ impl Vm {
             vm_config.lock().unwrap().is_tdx_enabled()
         };
 
+        #[cfg(feature = "arm_rmi")]
+        let arm_rmi_enabled = if snapshot.is_some() {
+            false
+        } else {
+            vm_config.lock().unwrap().is_arm_rmi_enabled()
+        };
+
         let vm = Self::create_hypervisor_vm(
             hypervisor.as_ref(),
             vm_config.as_ref().lock().unwrap().deref().into(),
@@ -1115,6 +1122,8 @@ impl Vm {
                     phys_bits,
                     #[cfg(feature = "tdx")]
                     tdx_enabled,
+                    #[cfg(feature = "arm_rmi")]
+                    arm_rmi_enabled,
                     None,
                     Default::default(),
                 )
@@ -2548,6 +2557,11 @@ impl Vm {
         // Resume the vm for MSHV
         if current_state == VmState::Created {
             self.vm.resume().map_err(Error::ResumeVm)?;
+        }
+
+        #[cfg(feature = "arm_rmi")]
+        if self.config.lock().unwrap().is_arm_rmi_enabled() {
+            todo!("finalize realm");
         }
 
         self.cpu_manager

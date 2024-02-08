@@ -64,6 +64,7 @@ mshv = ["vmm/mshv"]
 pvmemcontrol = ["vmm/pvmemcontrol"]
 sev_snp = ["igvm", "mshv", "vmm/sev_snp"]
 tdx = ["vmm/tdx"]
+arm_rmi = ["vmm/arm_rmi"]
 tracing = ["tracer/tracing", "vmm/tracing"]
 
 [lints]
