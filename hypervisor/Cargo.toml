@@ -10,6 +10,7 @@ kvm = ["kvm-ioctls", "kvm-bindings", "vfio-ioctls/kvm"]
 mshv = ["mshv-ioctls", "mshv-bindings", "vfio-ioctls/mshv", "iced-x86"]
 sev_snp = ["igvm", "igvm_defs"]
 tdx = []
+arm_rme = []
 
 [dependencies]
 anyhow = "1.0.81"

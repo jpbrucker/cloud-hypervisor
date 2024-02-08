@@ -8,6 +8,7 @@ version = "0.1.0"
 default = []
 sev_snp = []
 tdx = []
+arm_rme = []
 
 [dependencies]
 anyhow = "1.0.81"

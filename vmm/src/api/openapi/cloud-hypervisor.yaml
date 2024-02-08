@@ -722,6 +722,9 @@ components:
         tdx:
           type: boolean
           default: false
+        arm_rme:
+          type: boolean
+          default: false
 
     MemoryZoneConfig:
       required:
