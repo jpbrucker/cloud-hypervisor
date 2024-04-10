@@ -128,6 +128,13 @@ pub enum HypervisorVmError {
     ///
     #[error("Failed to enable x2apic API")]
     EnableX2ApicApi(#[source] anyhow::Error),
+    ///
+    /// Populate Realm error
+    ///
+    #[cfg(feature = "arm_rmi")]
+    #[error("Failed to populate Realm: {0}")]
+    PopulateRealm(#[source] anyhow::Error),
+    ///
     /// Get clock error
     ///
     #[error("Failed to get clock")]
@@ -418,6 +425,11 @@ pub trait Vm: Send + Sync + Any {
         _size: usize,
         _measure: bool,
     ) -> Result<()> {
+        unimplemented!()
+    }
+    #[cfg(feature = "arm_rmi")]
+    /// Populate Arm Realm guest memory
+    fn arm_rmi_realm_populate(&self, _addr: u64, _host_address: *mut u8, _size: u64) -> Result<()> {
         unimplemented!()
     }
     /// Downcast to the underlying hypervisor VM type

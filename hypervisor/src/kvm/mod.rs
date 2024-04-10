@@ -144,6 +144,8 @@ ioctl_iowr_nr!(KVM_MEMORY_ENCRYPT_OP, KVMIO, 0xba, std::os::raw::c_ulong);
 
 #[cfg(feature = "arm_rmi")]
 const KVM_VM_TYPE_ARM_REALM: u64 = 1 << 8;
+#[cfg(feature = "arm_rmi")]
+const KVM_ARM_RME_POPULATE_FLAGS_MEASURE: u32 = 1 << 0;
 
 #[cfg(feature = "tdx")]
 #[repr(u32)]
@@ -1080,6 +1082,30 @@ impl vm::Vm for KvmVm {
             &data as *const _ as *const _,
         )
         .map_err(vm::HypervisorVmError::InitMemRegionTdx)
+    }
+
+    //
+    // Register guest RAM regions to be initialized by the Realm
+    //
+    #[cfg(feature = "arm_rmi")]
+    fn arm_rmi_realm_populate(&self, addr: u64, host_addr: *mut u8, size: u64) -> vm::Result<()> {
+        log::info!(
+            "ARM RMI populate 0x{:x} 0x{:x} 0x{:x}",
+            addr,
+            size,
+            host_addr as u64
+        );
+
+        self.set_memory_attributes(addr, size, vm::MemoryAttribute::Private)?;
+
+        self.fd
+            .arm_rmi_populate(
+                addr,
+                size,
+                host_addr as u64,
+                KVM_ARM_RME_POPULATE_FLAGS_MEASURE,
+            )
+            .map_err(|e| vm::HypervisorVmError::PopulateRealm(e.into()))
     }
 
     /// Downcast to the underlying KvmVm type

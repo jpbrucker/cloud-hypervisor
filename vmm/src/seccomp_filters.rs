@@ -445,6 +445,9 @@ fn create_vmm_ioctl_seccomp_rule_kvm() -> Result<Vec<SeccompRule>, BackendError>
     const KVM_ARM_VCPU_INIT: u64 = 0x4020_aeae;
     const KVM_SET_GUEST_DEBUG: u64 = 0x4208_ae9b;
     const KVM_ARM_VCPU_FINALIZE: u64 = 0x4004_aec2;
+    // nr = 0xd7; kvmio = 0xae; size = 8 * 4; ioc_write = 1
+    // hex((nr << 0) | (kvmio << 8) | (size << 16) | (ioc_write << 30))
+    pub const KVM_ARM_RMI_POPULATE: u64 = 0x4020_aed7;
 
     let common_rules = create_vmm_ioctl_seccomp_rule_common(HypervisorType::Kvm)?;
     let mut arch_rules = or![
@@ -452,6 +455,7 @@ fn create_vmm_ioctl_seccomp_rule_kvm() -> Result<Vec<SeccompRule>, BackendError>
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_ARM_VCPU_INIT,)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_GUEST_DEBUG,)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_ARM_VCPU_FINALIZE,)?],
+        and![Cond::new(1, ArgLen::Dword, Eq, KVM_ARM_RMI_POPULATE)?],
     ];
     arch_rules.extend(common_rules);
 
