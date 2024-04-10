@@ -159,6 +159,11 @@ pub enum HypervisorCpuError {
     #[error("Failed to init vcpu: {0}")]
     VcpuInit(#[source] anyhow::Error),
     ///
+    /// Vcpu Finalize error
+    ///
+    #[error("Failed to finalize vcpu: {0}")]
+    VcpuFinalize(#[source] anyhow::Error),
+    ///
     /// Setting one reg error
     ///
     #[error("Failed to init vcpu: {0}")]
@@ -524,4 +529,12 @@ pub trait Vcpu: Send + Sync {
     /// Trigger NMI interrupt
     ///
     fn nmi(&self) -> Result<()>;
+
+    #[cfg(feature = "arm_rme")]
+    ///
+    /// Finalize Arm Realm Execution Context (vCPU)
+    ///
+    fn rec_finalize(&self) -> Result<()> {
+        unimplemented!()
+    }
 }

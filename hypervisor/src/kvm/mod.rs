@@ -2041,16 +2041,18 @@ impl cpu::Vcpu for KvmVcpu {
 
         let kreg_off = offset_of!(kvm_regs, regs);
 
-        // Get the register index of the PSTATE (Processor State) register.
-        let pstate = offset_of!(user_pt_regs, pstate) + kreg_off;
-        self.fd
-            .lock()
-            .unwrap()
-            .set_one_reg(
-                arm64_core_reg_id!(KVM_REG_SIZE_U64, pstate),
-                &PSTATE_FAULT_BITS_64.to_le_bytes(),
-            )
-            .map_err(|e| cpu::HypervisorCpuError::SetCoreRegister(e.into()))?;
+        if !self.arm_rme_enabled {
+            // Get the register index of the PSTATE (Processor State) register.
+            let pstate = offset_of!(user_pt_regs, pstate) + kreg_off;
+            self.fd
+                .lock()
+                .unwrap()
+                .set_one_reg(
+                    arm64_core_reg_id!(KVM_REG_SIZE_U64, pstate),
+                    &PSTATE_FAULT_BITS_64.to_le_bytes(),
+                )
+                .map_err(|e| cpu::HypervisorCpuError::SetCoreRegister(e.into()))?;
+        }
 
         // Other vCPUs are powered off initially awaiting PSCI wakeup.
         if cpu_id == 0 {
@@ -2079,6 +2081,7 @@ impl cpu::Vcpu for KvmVcpu {
                 )
                 .map_err(|e| cpu::HypervisorCpuError::SetCoreRegister(e.into()))?;
         }
+
         Ok(())
     }
 
@@ -2555,6 +2558,17 @@ impl cpu::Vcpu for KvmVcpu {
             }
             Ok(_) => Ok(()),
         }
+    }
+
+    #[cfg(feature = "arm_rme")]
+    fn rec_finalize(&self) -> cpu::Result<()> {
+        let feature = KVM_ARM_VCPU_REC as i32;
+        self.fd
+            .lock()
+            .unwrap()
+            .vcpu_finalize(&feature)
+            .map_err(|e| cpu::HypervisorCpuError::VcpuFinalize(e.into()))?;
+        Ok(())
     }
 }
 
