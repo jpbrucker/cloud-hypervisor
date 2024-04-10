@@ -24,6 +24,7 @@ use igvm_defs::IGVM_VHS_SNP_ID_BLOCK;
 use std::any::Any;
 #[cfg(target_arch = "x86_64")]
 use std::fs::File;
+use std::os::unix::io::RawFd;
 use std::sync::Arc;
 #[cfg(target_arch = "aarch64")]
 use std::sync::Mutex;
@@ -255,6 +256,11 @@ pub enum HypervisorVmError {
     ///
     #[error("Failed to complete isolated import: {0}")]
     CompleteIsolatedImport(#[source] anyhow::Error),
+    ///
+    /// Failed to create a guest memfd
+    ///
+    #[error("Failed to create guest memfd: {0}")]
+    CreateGuestMemfd(#[source] anyhow::Error),
 }
 ///
 /// Result type for returning from a function
@@ -435,6 +441,10 @@ pub trait Vm: Send + Sync + Any {
         _host_data: [u8; 32],
         _id_block_enabled: u8,
     ) -> Result<()> {
+        unimplemented!()
+    }
+    /// Create a guest memfd
+    fn create_guest_memfd(&self, _size: u64) -> Result<RawFd> {
         unimplemented!()
     }
 }
