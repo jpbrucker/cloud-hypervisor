@@ -11,6 +11,7 @@
 //
 
 use std::any::Any;
+use std::os::unix::io::RawFd;
 use std::sync::Arc;
 #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 use std::sync::Mutex;
@@ -270,6 +271,11 @@ pub enum HypervisorVmError {
     ///
     #[error("Failed to get the list of supported MSRs")]
     GetMsrList(#[source] anyhow::Error),
+    ///
+    /// Failed to create a guest memfd
+    ///
+    #[error("Failed to create guest memfd: {0}")]
+    CreateGuestMemfd(#[source] anyhow::Error),
 }
 ///
 /// Result type for returning from a function
@@ -476,6 +482,11 @@ pub trait Vm: Send + Sync + Any {
     #[cfg(all(feature = "kvm", target_arch = "x86_64"))]
     fn enable_x2apic_api(&self) -> Result<()> {
         unimplemented!("x2Apic is only supported on KVM/Linux hosts")
+    }
+
+    /// Create a guest memfd
+    fn create_guest_memfd(&self, _size: u64) -> Result<RawFd> {
+        unimplemented!()
     }
 }
 
