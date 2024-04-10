@@ -2281,13 +2281,15 @@ impl cpu::Vcpu for KvmVcpu {
     #[cfg(target_arch = "aarch64")]
     fn setup_regs(&self, cpu_id: u32, boot_ip: u64, fdt_start: u64) -> cpu::Result<()> {
         // Get the register index of the PSTATE (Processor State) register.
-        let pstate = offset_of!(kvm_regs, regs.pstate);
-        self.fd
-            .set_one_reg(
-                arm64_core_reg_id!(KVM_REG_SIZE_U64, pstate),
-                &regs::PSTATE_FAULT_BITS_64.to_le_bytes(),
-            )
-            .map_err(|e| cpu::HypervisorCpuError::SetAarchCoreRegister(e.into()))?;
+        if !self.is_arm_rmi_enabled() {
+            let pstate = offset_of!(kvm_regs, regs.pstate);
+            self.fd
+                .set_one_reg(
+                    arm64_core_reg_id!(KVM_REG_SIZE_U64, pstate),
+                    &regs::PSTATE_FAULT_BITS_64.to_le_bytes(),
+                )
+                .map_err(|e| cpu::HypervisorCpuError::SetAarchCoreRegister(e.into()))?;
+        }
 
         // Other vCPUs are powered off initially awaiting PSCI wakeup.
         if cpu_id == 0 {
@@ -2701,6 +2703,7 @@ impl cpu::Vcpu for KvmVcpu {
     fn set_state(&self, state: &CpuState) -> cpu::Result<()> {
         let state: VcpuKvmState = state.clone().into();
         // Set core registers
+        // TODO: test this with RMI: it should fail.
         self.set_regs(&state.core_regs.into())?;
         // Set system registers
         for reg in &state.sys_regs {
@@ -3058,6 +3061,18 @@ impl KvmVcpu {
         self.fd
             .set_nested_state(state)
             .map_err(|e| cpu::HypervisorCpuError::GetNestedState(e.into()))
+    }
+
+    ///
+    /// Return true if this vCPU is for a Realm VM
+    ///
+    #[cfg(target_arch = "aarch64")]
+    fn is_arm_rmi_enabled(&self) -> bool {
+        #[cfg(feature = "arm_rmi")]
+        if self.arm_rmi_enabled {
+            return true;
+        }
+        false
     }
 }
 
