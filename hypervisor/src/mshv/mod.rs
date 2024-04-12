@@ -47,6 +47,7 @@ pub use x86_64::*;
 
 #[cfg(target_arch = "x86_64")]
 use std::fs::File;
+use std::os::fd::RawFd;
 use std::os::unix::io::AsRawFd;
 
 #[cfg(target_arch = "x86_64")]
@@ -1832,6 +1833,7 @@ impl vm::Vm for MshvVm {
         userspace_addr: u64,
         readonly: bool,
         _log_dirty_pages: bool,
+        _guest_memfd: Option<(RawFd, u64)>,
     ) -> UserMemoryRegion {
         let mut flags = HV_MAP_GPA_READABLE | HV_MAP_GPA_EXECUTABLE | HV_MAP_GPA_ADJUSTABLE;
         if !readonly {

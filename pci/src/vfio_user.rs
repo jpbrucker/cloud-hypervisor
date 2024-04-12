@@ -189,6 +189,7 @@ impl VfioUserPciDevice {
                         user_memory_region.host_addr,
                         false,
                         false,
+                        None,
                     );
 
                     self.vm
@@ -212,6 +213,7 @@ impl VfioUserPciDevice {
                     user_memory_region.host_addr,
                     false,
                     false,
+                    None,
                 );
 
                 if let Err(e) = self.vm.remove_user_memory_region(r) {
@@ -465,6 +467,7 @@ impl PciDevice for VfioUserPciDevice {
                         user_memory_region.host_addr,
                         false,
                         false,
+                        None,
                     );
 
                     self.vm
@@ -486,6 +489,7 @@ impl PciDevice for VfioUserPciDevice {
                         user_memory_region.host_addr,
                         false,
                         false,
+                        None,
                     );
 
                     self.vm

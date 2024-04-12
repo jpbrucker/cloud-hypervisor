@@ -55,6 +55,7 @@ pub use cpu::{HypervisorCpuError, Vcpu, VmExit};
 pub use device::HypervisorDeviceError;
 #[cfg(all(feature = "kvm", target_arch = "aarch64"))]
 pub use kvm::{aarch64, GicState};
+use std::os::fd::RawFd;
 use std::sync::Arc;
 pub use vm::{
     DataMatch, HypervisorVmError, InterruptSourceConfig, LegacyIrqSourceConfig, MsiIrqSourceConfig,
@@ -128,6 +129,7 @@ pub struct UserMemoryRegion {
     pub memory_size: u64,
     pub userspace_addr: u64,
     pub flags: u32,
+    pub guest_memfd: Option<(RawFd, u64)>,
 }
 
 ///
