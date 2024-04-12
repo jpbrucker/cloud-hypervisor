@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#[cfg(all(target_arch = "x86_64", feature = "guest_debug"))]
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -205,6 +204,8 @@ pub struct MemoryManager {
     pub acpi_address: Option<GuestAddress>,
     #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
     uefi_flash: Option<GuestMemoryAtomic<GuestMemoryMmap>>,
+    use_guest_memfd: bool,
+    guest_memfds: BTreeMap<u64, File>,
 }
 
 #[derive(Error, Debug)]
@@ -366,6 +367,10 @@ pub enum Error {
     /// Boot region overlaps another
     #[error("Boot region overlaps another")]
     BootRegionOverlaps,
+
+    /// Failed to create guest memfd
+    #[error("Failed to create guest memfd")]
+    CreateGuestMemfd(hypervisor::HypervisorVmError),
 }
 
 const ENABLE_FLAG: usize = 0;
@@ -922,7 +927,7 @@ impl MemoryManager {
         for (zone_id, regions) in list {
             for (region, virtio_mem) in regions {
                 // SAFETY: guaranteed by GuestRegionMmap invariants
-                let slot = unsafe {
+                let (slot, guest_memfd) = unsafe {
                     self.create_userspace_mapping(
                         region.start_addr().raw_value(),
                         region.len().try_into().unwrap(),
@@ -939,14 +944,19 @@ impl MemoryManager {
                     0
                 };
 
+                let gpa = region.start_addr().raw_value();
                 self.guest_ram_mappings.push(GuestRamMapping {
-                    gpa: region.start_addr().raw_value(),
+                    gpa,
                     size: region.len(),
                     slot,
                     zone_id: zone_id.clone(),
                     virtio_mem,
                     file_offset,
                 });
+                if let Some(mfd) = guest_memfd {
+                    self.guest_memfds.insert(gpa, mfd);
+                }
+
                 self.ram_allocator
                     .allocate(Some(region.start_addr()), region.len(), None)
                     .ok_or(Error::MemoryRangeAllocation)?;
@@ -982,8 +992,8 @@ impl MemoryManager {
             arch::layout::UEFI_START,
         )
         .unwrap();
+        let guest_memfd = self.create_guest_memfd(uefi_region.len())?;
         const _: () = assert!(core::mem::size_of::<usize>() == core::mem::size_of::<u64>());
-
         // SAFETY: guaranteed by GuestRegionMmap
         unsafe {
             self.vm
@@ -994,7 +1004,7 @@ impl MemoryManager {
                     uefi_region.as_ptr(),
                     false,
                     false,
-                    self.guest_memfd.map(|fd| (fd, 0)),
+                    guest_memfd.map(|fd| (fd, 0)),
                 )
                 .map_err(Error::CreateUefiFlash)?;
         }
@@ -1180,6 +1190,14 @@ impl MemoryManager {
             )
         };
 
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "arm_rmi")] {
+                let use_guest_memfd = arm_rmi_enabled;
+            } else {
+                let use_guest_memfd = false;
+            }
+        }
+
         let guest_memory = GuestMemoryAtomic::new(guest_memory);
 
         let allocator = Arc::new(Mutex::new(
@@ -1257,6 +1275,8 @@ impl MemoryManager {
             #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
             uefi_flash: None,
             thp: config.thp,
+            use_guest_memfd,
+            guest_memfds: BTreeMap::new(),
         };
 
         Ok(Arc::new(Mutex::new(memory_manager)))
@@ -1669,7 +1689,7 @@ impl MemoryManager {
 
         // Map it into the guest
         // SAFETY: guaranteed by GuestMmapRegion invariants
-        let slot = unsafe {
+        let (slot, guest_memfd) = unsafe {
             self.create_userspace_mapping(
                 region.start_addr().0,
                 region.len().try_into().unwrap(),
@@ -1679,14 +1699,18 @@ impl MemoryManager {
                 self.log_dirty,
             )
         }?;
+        let gpa = region.start_addr().raw_value();
         self.guest_ram_mappings.push(GuestRamMapping {
-            gpa: region.start_addr().raw_value(),
+            gpa,
             size: region.len(),
             slot,
             zone_id: DEFAULT_MEMORY_ZONE.to_string(),
             virtio_mem: false,
             file_offset: 0,
         });
+        if let Some(mfd) = guest_memfd {
+            self.guest_memfds.insert(gpa, mfd);
+        }
 
         self.add_region(Arc::clone(&region))?;
 
@@ -1793,6 +1817,18 @@ impl MemoryManager {
         self.memory_slot_allocator().next_memory_slot()
     }
 
+    fn create_guest_memfd(&self, size: u64) -> Result<Option<RawFd>, Error> {
+        if self.use_guest_memfd {
+            let guest_memfd = self
+                .vm
+                .create_guest_memfd(size)
+                .map_err(Error::CreateGuestMemfd)?;
+            Ok(Some(guest_memfd))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// # Safety
     ///
     /// `userspace_addr` and `memory_size` must be and remain valid
@@ -1805,13 +1841,16 @@ impl MemoryManager {
         mergeable: bool,
         readonly: bool,
         log_dirty: bool,
-    ) -> Result<u32, Error> {
+    ) -> Result<(u32, Option<File>), Error> {
         let slot = self.allocate_memory_slot();
 
         info!(
             "Creating userspace mapping: {guest_phys_addr:x} -> {userspace_addr_:x} {memory_size:x}, slot {slot}",
             userspace_addr_ = userspace_addr as u64
         );
+
+        let guest_memfd = self.create_guest_memfd(memory_size as u64)?;
+        let memfd_param = guest_memfd.map(|fd| (fd, 0));
 
         // SAFETY: caller promises parameters are correct.
         unsafe {
@@ -1823,7 +1862,7 @@ impl MemoryManager {
                     userspace_addr,
                     readonly,
                     log_dirty,
-                    self.guest_memfd.map(|fd| (fd, ram_offset)),
+                    memfd_param,
                 )
                 .map_err(Error::CreateUserMemoryRegion)?;
         }
@@ -1872,7 +1911,9 @@ impl MemoryManager {
             userspace_addr_ = userspace_addr as u64
         );
 
-        Ok(slot)
+        // SAFETY: fd is valid
+        let guest_memfd_file = guest_memfd.map(|fd| unsafe { File::from_raw_fd(fd) });
+        Ok((slot, guest_memfd_file))
     }
 
     /// # Safety

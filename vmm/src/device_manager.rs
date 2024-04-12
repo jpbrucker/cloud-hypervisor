@@ -3293,7 +3293,7 @@ impl DeviceManager {
         let host_addr = mmap_region.as_ptr();
 
         // SAFETY: host_addr points to region_size bytes of mmap-allocated memory.
-        let mem_slot = unsafe {
+        let (mem_slot, _guest_memfd) = unsafe {
             let region_size = region_size.try_into().unwrap();
             self.memory_manager
                 .lock()
