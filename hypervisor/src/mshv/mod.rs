@@ -48,6 +48,7 @@ pub mod x86_64;
 // aarch64 dependencies
 #[cfg(target_arch = "aarch64")]
 pub mod aarch64;
+use std::os::fd::RawFd;
 use std::os::unix::io::AsRawFd;
 #[cfg(target_arch = "aarch64")]
 use std::sync::Mutex;
@@ -1969,6 +1970,7 @@ impl vm::Vm for MshvVm {
         userspace_addr: *mut u8,
         readonly: bool,
         _log_dirty_pages: bool,
+        _guest_memfd: Option<(RawFd, u64)>,
     ) -> vm::Result<()> {
         let mut flags = 1 << MSHV_SET_MEM_BIT_EXECUTABLE;
         if !readonly {

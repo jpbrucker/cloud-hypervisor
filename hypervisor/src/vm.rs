@@ -368,6 +368,7 @@ pub trait Vm: Send + Sync + Any {
         userspace_addr: *mut u8,
         readonly: bool,
         log_dirty_pages: bool,
+        guest_memfd: Option<(RawFd, u64)>,
     ) -> Result<()>;
     /// Removes a guest physical memory slot.
     ///

@@ -978,6 +978,7 @@ impl MemoryManager {
                     uefi_region.as_ptr(),
                     false,
                     false,
+                    self.guest_memfd.map(|fd| (fd, 0)),
                 )
                 .map_err(Error::CreateUefiFlash)?;
         }
@@ -1782,6 +1783,7 @@ impl MemoryManager {
                     userspace_addr,
                     readonly,
                     log_dirty,
+                    self.guest_memfd.map(|fd| (fd, ram_offset)),
                 )
                 .map_err(Error::CreateUserMemoryRegion)?;
         }

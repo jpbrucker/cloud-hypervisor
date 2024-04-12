@@ -757,6 +757,7 @@ impl vm::Vm for KvmVm {
         userspace_addr: *mut u8,
         readonly: bool,
         log_dirty_pages: bool,
+        guest_memfd: Option<(RawFd, u64)>,
     ) -> vm::Result<()> {
         let mut flags = 0;
         if readonly {
@@ -765,45 +766,70 @@ impl vm::Vm for KvmVm {
         if log_dirty_pages {
             flags |= KVM_MEM_LOG_DIRTY_PAGES;
         }
+        if guest_memfd.is_some() {
+            flags |= KVM_MEM_GUEST_MEMFD;
+        }
 
         const _: () = assert!(core::mem::size_of::<usize>() <= core::mem::size_of::<u64>());
 
-        let mut region = kvm_userspace_memory_region {
-            slot,
-            guest_phys_addr,
-            memory_size: memory_size as u64,
-            userspace_addr: userspace_addr as usize as u64,
-            flags,
-        };
-
-        if (region.flags & KVM_MEM_LOG_DIRTY_PAGES) != 0 {
-            if (region.flags & KVM_MEM_READONLY) != 0 {
+        if (flags & KVM_MEM_LOG_DIRTY_PAGES) != 0 {
+            if (flags & KVM_MEM_READONLY) != 0 {
                 return Err(vm::HypervisorVmError::CreateUserMemory(anyhow!(
                     "Error creating regions with both 'dirty-pages-log' and 'read-only'."
                 )));
             }
 
+            if (flags & KVM_MEM_GUEST_MEMFD) != 0 {
+                // Guest memfd regions are not mutable
+                return Err(vm::HypervisorVmError::CreateUserMemory(anyhow!(
+                    "Error creating region with both 'dirty-pages-log' and 'guest-memfd'."
+                )));
+            }
+
             // Keep track of the regions that need dirty pages log
             self.dirty_log_slots.write().unwrap().insert(
-                region.slot,
+                slot,
                 KvmDirtyLogSlot {
-                    slot: region.slot,
-                    guest_phys_addr: region.guest_phys_addr,
-                    memory_size: region.memory_size,
-                    userspace_addr: region.userspace_addr,
+                    slot,
+                    guest_phys_addr,
+                    memory_size: memory_size as u64,
+                    userspace_addr: userspace_addr as usize as u64,
                 },
             );
 
             // Always create guest physical memory region without `KVM_MEM_LOG_DIRTY_PAGES`.
             // For regions that need this flag, dirty pages log will be turned on in `start_dirty_log`.
-            region.flags = 0;
+            flags &= !KVM_MEM_LOG_DIRTY_PAGES;
         }
 
         // SAFETY: Safe because caller promised this is safe.
         unsafe {
-            self.fd
-                .set_user_memory_region(region)
-                .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()))
+            if let Some((fd, offset)) = guest_memfd {
+                let region = kvm_userspace_memory_region2 {
+                    slot,
+                    guest_phys_addr,
+                    memory_size: memory_size as u64,
+                    userspace_addr: userspace_addr as usize as u64,
+                    flags,
+                    guest_memfd: fd as u32,
+                    guest_memfd_offset: offset,
+                    ..Default::default()
+                };
+                self.fd
+                    .set_user_memory_region2(region)
+                    .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()))
+            } else {
+                let region = kvm_userspace_memory_region {
+                    slot,
+                    guest_phys_addr,
+                    memory_size: memory_size as u64,
+                    userspace_addr: userspace_addr as usize as u64,
+                    flags,
+                };
+                self.fd
+                    .set_user_memory_region(region)
+                    .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()))
+            }
         }
     }
 
