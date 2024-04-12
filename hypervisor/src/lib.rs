@@ -58,8 +58,8 @@ pub use kvm::{aarch64, GicState};
 use std::os::fd::RawFd;
 use std::sync::Arc;
 pub use vm::{
-    DataMatch, HypervisorVmError, InterruptSourceConfig, LegacyIrqSourceConfig, MsiIrqSourceConfig,
-    Vm, VmOps,
+    DataMatch, HypervisorVmError, InterruptSourceConfig, LegacyIrqSourceConfig, MemoryAttribute,
+    MemoryFaultType, MsiIrqSourceConfig, Vm, VmOps,
 };
 
 #[cfg(feature = "arm_rme")]
