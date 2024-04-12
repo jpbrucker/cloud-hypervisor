@@ -589,16 +589,20 @@ impl Vm {
         let numa_nodes =
             Self::create_numa_nodes(config.lock().unwrap().numa.as_deref(), &memory_manager)?;
 
-        #[cfg(feature = "tdx")]
-        let tdx_enabled = config.lock().unwrap().is_tdx_enabled();
-        #[cfg(feature = "sev_snp")]
-        let sev_snp_enabled = config.lock().unwrap().is_sev_snp_enabled();
-        #[cfg(feature = "tdx")]
-        let force_iommu = tdx_enabled;
-        #[cfg(feature = "sev_snp")]
-        let force_iommu = sev_snp_enabled;
-        #[cfg(not(any(feature = "tdx", feature = "sev_snp")))]
-        let force_iommu = false;
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "tdx")] {
+                let tdx_enabled = config.lock().unwrap().is_tdx_enabled();
+                let force_iommu = tdx_enabled;
+            } else if #[cfg(feature = "sev_snp")] {
+                let sev_snp_enabled = config.lock().unwrap().is_sev_snp_enabled();
+                let force_iommu = sev_snp_enabled;
+            } else if #[cfg(feature = "arm_rmi")] {
+                let arm_rmi_enabled = config.lock().unwrap().is_arm_rmi_enabled();
+                let force_iommu = arm_rmi_enabled;
+            } else {
+                let force_iommu = false;
+            }
+        }
 
         #[cfg(feature = "guest_debug")]
         let stop_on_boot = config.lock().unwrap().gdb;
