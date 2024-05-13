@@ -22,6 +22,11 @@ use vm_memory::{Address, GuestAddress, GuestMemory, GuestMemoryAtomic};
 
 pub const _NSIG: i32 = 65;
 
+pub enum PsciMethod {
+    Smc,
+    Hvc,
+}
+
 /// Errors thrown while configuring aarch64 system.
 #[derive(Debug)]
 pub enum Error {
@@ -134,6 +139,7 @@ pub fn configure_system<T: DeviceInfoForFdt + Clone + Debug, S: ::std::hash::Bui
     gic_device: &Arc<Mutex<dyn Vgic>>,
     numa_nodes: &NumaNodes,
     pmu_supported: bool,
+    psci_method: PsciMethod,
 ) -> super::Result<usize> {
     let fdt_final = fdt::create_fdt(
         guest_mem,
@@ -147,6 +153,7 @@ pub fn configure_system<T: DeviceInfoForFdt + Clone + Debug, S: ::std::hash::Bui
         numa_nodes,
         virtio_iommu_bdf,
         pmu_supported,
+        psci_method,
     )
     .map_err(|_| Error::SetupFdt)?;
 

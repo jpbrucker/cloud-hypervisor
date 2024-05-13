@@ -47,7 +47,7 @@ use arch::layout::{KVM_IDENTITY_MAP_START, KVM_TSS_START};
 use arch::x86_64::tdx::TdvfSection;
 use arch::EntryPoint;
 #[cfg(target_arch = "aarch64")]
-use arch::PciSpaceInfo;
+use arch::{aarch64::PsciMethod, PciSpaceInfo};
 use arch::{NumaNode, NumaNodes};
 #[cfg(target_arch = "aarch64")]
 use devices::interrupt_controller;
@@ -1348,6 +1348,8 @@ impl Vm {
         let vcpu_topology = self.cpu_manager.lock().unwrap().get_vcpu_topology();
         let mem = self.memory_manager.lock().unwrap().boot_guest_memory();
         let mut pci_space_info: Vec<PciSpaceInfo> = Vec::new();
+        #[allow(unused_mut)]
+        let mut psci_method = PsciMethod::Hvc;
         let initramfs_config = match self.initramfs {
             Some(_) => Some(self.load_initramfs(&mem)?),
             None => None,
@@ -1419,6 +1421,7 @@ impl Vm {
             &vgic,
             &self.numa_nodes,
             pmu_supported,
+            psci_method,
         )
         .map_err(Error::ConfigureSystem)?;
 
@@ -3299,6 +3302,7 @@ mod tests {
             &BTreeMap::new(),
             None,
             true,
+            PsciMethod::Hvc,
         )
         .is_ok())
     }
