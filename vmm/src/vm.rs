@@ -1649,6 +1649,11 @@ impl Vm {
                 ))
             })?;
 
+        #[cfg(feature = "arm_rmi")]
+        if self.config.lock().unwrap().is_arm_rmi_enabled() {
+            psci_method = PsciMethod::Smc;
+        }
+
         let fdt_len = arch::configure_system(
             &mem,
             cmdline.as_cstring().unwrap().to_str().unwrap(),
