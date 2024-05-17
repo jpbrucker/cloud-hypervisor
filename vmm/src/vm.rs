@@ -63,6 +63,8 @@ use seccompiler::SeccompAction;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracer::trace_scoped;
+#[cfg(feature = "arm_rmi")]
+use vm_allocator::page_size::{align_page_size_up, is_page_size_aligned};
 use vm_device::Bus;
 #[cfg(feature = "tdx")]
 use vm_memory::{Address, ByteValued, GuestMemoryRegion, ReadVolatile};
@@ -313,6 +315,18 @@ pub enum Error {
     #[cfg(feature = "tdx")]
     #[error("Invalid TDX payload type")]
     InvalidPayloadType,
+
+    #[cfg(feature = "arm_rmi")]
+    #[error("Error populating Realm VM: {0}")]
+    ArmRmiPopulate(#[source] hypervisor::HypervisorVmError),
+
+    #[cfg(feature = "arm_rmi")]
+    #[error("Error accessing guest memory source: {0}")]
+    ArmRmiPopulateGuestMemory(#[source] vm_memory::GuestMemoryError),
+
+    #[cfg(feature = "arm_rmi")]
+    #[error("Error populating Realm VM: invalid alignment")]
+    ArmRmiPopulateAlignment,
 
     #[cfg(feature = "guest_debug")]
     #[error("Error debugging VM")]
@@ -1110,10 +1124,18 @@ impl Vm {
             vm.enable_x2apic_api().unwrap();
         }
 
-        let phys_bits = physical_bits(
+        #[allow(unused_mut)]
+        let mut phys_bits = physical_bits(
             hypervisor.as_ref(),
             vm_config.lock().unwrap().cpus.max_phys_bits,
         );
+
+        #[cfg(feature = "arm_rmi")]
+        if arm_rmi_enabled {
+            // The top bit of the IPA space distinguishes between shared and
+            // private halves. It's not available fot the memory manager.
+            phys_bits -= 1;
+        }
 
         let memory_manager =
             if let Some(snapshot) = snapshot_from_id(snapshot, MEMORY_MANAGER_SNAPSHOT_ID) {
@@ -2598,7 +2620,24 @@ impl Vm {
 
         #[cfg(feature = "arm_rmi")]
         if self.config.lock().unwrap().is_arm_rmi_enabled() {
-            todo!("finalize realm");
+            let guest_mem = self.memory_manager.lock().as_ref().unwrap().guest_memory();
+            for (addr, data) in self.memory_manager.lock().unwrap().boot_data() {
+                let host_addr = guest_mem
+                    .memory()
+                    .get_host_address(*addr)
+                    .map_err(Error::ArmRmiPopulateGuestMemory)?;
+
+                if !is_page_size_aligned(host_addr as u64) || !is_page_size_aligned(addr.0) {
+                    return Err(Error::ArmRmiPopulateAlignment);
+                }
+                // TODO: we don't want the host page size but the RMM granule
+                // size
+                let aligned_size = align_page_size_up(data.size as u64);
+
+                self.vm
+                    .arm_rmi_realm_populate(addr.0, host_addr, aligned_size)
+                    .map_err(Error::ArmRmiPopulate)?;
+            }
         }
 
         self.cpu_manager
