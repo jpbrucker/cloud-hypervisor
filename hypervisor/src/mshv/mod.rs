@@ -250,12 +250,12 @@ impl MshvHypervisor {
             .map_err(|e| hypervisor::HypervisorError::GetMsrList(e.into()))
     }
 
-    fn create_vm_with_type_and_memory_int(
+    fn create_vm_with_caps_and_memory_int(
         &self,
-        vm_type: u64,
+        confidential: bool,
         #[cfg(feature = "sev_snp")] _mem_size: Option<u64>,
     ) -> hypervisor::Result<Arc<dyn crate::Vm>> {
-        let mshv_vm_type: VmType = match VmType::try_from(vm_type) {
+        let mshv_vm_type: VmType = match VmType::try_from(confidential as u64) {
             Ok(vm_type) => vm_type,
             Err(_) => return Err(hypervisor::HypervisorError::UnsupportedVmType()),
         };
@@ -408,7 +408,8 @@ impl hypervisor::Hypervisor for MshvHypervisor {
     }
 
     ///
-    /// Create a Vm of a specific type using the underlying hypervisor, passing memory size
+    /// Create a KVM vm object with the requested caps, passing memory size, and
+    /// return the object as Vm trait object.
     /// Return a hypervisor-agnostic Vm trait object
     ///
     /// # Examples
@@ -419,23 +420,15 @@ impl hypervisor::Hypervisor for MshvHypervisor {
     /// let hypervisor = KvmHypervisor::new().unwrap();
     /// let vm = hypervisor.create_vm_with_type(0, 512*1024*1024).unwrap();
     /// ```
-    fn create_vm_with_type_and_memory(
+    fn create_vm_with_caps_and_memory(
         &self,
-        vm_type: u64,
+        confidential: bool,
         #[cfg(feature = "sev_snp")] _mem_size: u64,
     ) -> hypervisor::Result<Arc<dyn vm::Vm>> {
-        self.create_vm_with_type_and_memory_int(
-            vm_type,
+        self.create_vm_with_caps_and_memory_int(
+            confidential,
             #[cfg(feature = "sev_snp")]
             Some(_mem_size),
-        )
-    }
-
-    fn create_vm_with_type(&self, vm_type: u64) -> hypervisor::Result<Arc<dyn crate::Vm>> {
-        self.create_vm_with_type_and_memory_int(
-            vm_type,
-            #[cfg(feature = "sev_snp")]
-            None,
         )
     }
 
@@ -451,8 +444,11 @@ impl hypervisor::Hypervisor for MshvHypervisor {
     /// let vm = hypervisor.create_vm().unwrap();
     /// ```
     fn create_vm(&self) -> hypervisor::Result<Arc<dyn vm::Vm>> {
-        let vm_type = 0;
-        self.create_vm_with_type(vm_type)
+        self.create_vm_with_caps_and_memory_int(
+            false,
+            #[cfg(feature = "sev_snp")]
+            None,
+        )
     }
     #[cfg(target_arch = "x86_64")]
     ///
