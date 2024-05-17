@@ -58,7 +58,7 @@ use aarch64::{RegList, Register, StandardRegisters};
 #[cfg(target_arch = "x86_64")]
 use kvm_bindings::{
     kvm_enable_cap, kvm_msr_entry, MsrList, KVM_CAP_HYPERV_SYNIC, KVM_CAP_SPLIT_IRQCHIP,
-    KVM_GUESTDBG_USE_HW_BP,
+    KVM_GUESTDBG_USE_HW_BP, KVM_X86_DEFAULT_VM,
 };
 #[cfg(target_arch = "x86_64")]
 use x86_64::check_required_kvm_extensions;
@@ -105,6 +105,9 @@ const KVM_CAP_SGX_ATTRIBUTE: u32 = 196;
 #[cfg(target_arch = "x86_64")]
 use vmm_sys_util::ioctl_io_nr;
 
+#[cfg(feature = "sev_snp")]
+const KVM_X86_SNP_VM: u64 = 1;
+
 #[cfg(all(not(feature = "tdx"), target_arch = "x86_64"))]
 use vmm_sys_util::ioctl_ioc_nr;
 
@@ -121,6 +124,8 @@ const TDG_VP_VMCALL_SETUP_EVENT_NOTIFY_INTERRUPT: u64 = 0x10004;
 const TDG_VP_VMCALL_SUCCESS: u64 = 0;
 #[cfg(feature = "tdx")]
 const TDG_VP_VMCALL_INVALID_OPERAND: u64 = 0x8000000000000000;
+#[cfg(feature = "tdx")]
+const KVM_X86_TDX_VM: u64 = 1;
 
 #[cfg(feature = "tdx")]
 ioctl_iowr_nr!(KVM_MEMORY_ENCRYPT_OP, KVMIO, 0xba, std::os::raw::c_ulong);
@@ -1011,7 +1016,7 @@ impl hypervisor::Hypervisor for KvmHypervisor {
         HypervisorType::Kvm
     }
 
-    /// Create a KVM vm object of a specific VM type and return the object as Vm trait object
+    /// Create a KVM vm object with the requested caps and return the object as Vm trait object
     ///
     /// # Examples
     ///
@@ -1019,12 +1024,25 @@ impl hypervisor::Hypervisor for KvmHypervisor {
     /// # use hypervisor::kvm::KvmHypervisor;
     /// use hypervisor::kvm::KvmVm;
     /// let hypervisor = KvmHypervisor::new().unwrap();
-    /// let vm = hypervisor.create_vm_with_type(0).unwrap();
+    /// let vm = hypervisor.create_vm_with_caps(false).unwrap();
     /// ```
-    fn create_vm_with_type(&self, vm_type: u64) -> hypervisor::Result<Arc<dyn vm::Vm>> {
+    fn create_vm_with_caps(&self, confidential: bool) -> hypervisor::Result<Arc<dyn vm::Vm>> {
         let fd: VmFd;
-        #[allow(unused_mut)]
-        let mut vm_type = vm_type;
+        #[allow(unused_assignments)]
+        let mut vm_type = 0;
+
+        #[cfg(target_arch = "x86_64")]
+        if confidential {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "sev_snp")] {
+                    vm_type = KVM_X86_SNP_VM;
+                } else if #[cfg(feature = "tdx")] {
+                    vm_type = KVM_X86_TDX_VM;
+                }
+            }
+        } else {
+            vm_type = KVM_X86_DEFAULT_VM as u64;
+        }
 
         // When KVM supports Cap::ArmVmIPASize, it is better to get the IPA
         // size from the host and use that when creating the VM, which may
@@ -1098,7 +1116,7 @@ impl hypervisor::Hypervisor for KvmHypervisor {
     /// let vm = hypervisor.create_vm().unwrap();
     /// ```
     fn create_vm(&self) -> hypervisor::Result<Arc<dyn vm::Vm>> {
-        self.create_vm_with_type(0)
+        self.create_vm_with_caps(false)
     }
 
     fn check_required_extensions(&self) -> hypervisor::Result<()> {

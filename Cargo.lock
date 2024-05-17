@@ -1036,6 +1036,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "byteorder",
+ "cfg-if",
  "env_logger",
  "iced-x86",
  "igvm",

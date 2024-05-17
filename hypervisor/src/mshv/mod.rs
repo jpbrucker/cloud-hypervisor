@@ -249,8 +249,8 @@ impl hypervisor::Hypervisor for MshvHypervisor {
         HypervisorType::Mshv
     }
 
-    fn create_vm_with_type(&self, vm_type: u64) -> hypervisor::Result<Arc<dyn crate::Vm>> {
-        let mshv_vm_type: VmType = match VmType::try_from(vm_type) {
+    fn create_vm_with_caps(&self, confidential: bool) -> hypervisor::Result<Arc<dyn crate::Vm>> {
+        let mshv_vm_type: VmType = match VmType::try_from(confidential as u64) {
             Ok(vm_type) => vm_type,
             Err(_) => return Err(hypervisor::HypervisorError::UnsupportedVmType()),
         };
@@ -357,8 +357,7 @@ impl hypervisor::Hypervisor for MshvHypervisor {
     /// let vm = hypervisor.create_vm().unwrap();
     /// ```
     fn create_vm(&self) -> hypervisor::Result<Arc<dyn vm::Vm>> {
-        let vm_type = 0;
-        self.create_vm_with_type(vm_type)
+        self.create_vm_with_caps(false)
     }
     #[cfg(target_arch = "x86_64")]
     ///
