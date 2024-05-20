@@ -775,8 +775,11 @@ impl PlatformConfig {
         parser.add("tdx");
         #[cfg(feature = "sev_snp")]
         parser.add("sev_snp");
-        #[cfg(feature = "arm_rme")]
-        parser.add("arm_rme");
+        if cfg!(feature = "arm_rme") {
+            parser.add("arm_rme");
+            parser.add("personalization_value");
+            parser.add("measurement_algo");
+        }
         parser.parse(platform).map_err(Error::ParsePlatform)?;
 
         let num_pci_segments: u16 = parser
@@ -813,6 +816,14 @@ impl PlatformConfig {
             .map_err(Error::ParsePlatform)?
             .unwrap_or(Toggle(false))
             .0;
+        #[cfg(feature = "arm_rme")]
+        let measurement_algo = parser
+            .convert("measurement_algo")
+            .map_err(Error::ParsePlatform)?;
+        #[cfg(feature = "arm_rme")]
+        let personalization_value = parser
+            .convert("personalization_value")
+            .map_err(Error::ParsePlatform)?;
         Ok(PlatformConfig {
             num_pci_segments,
             iommu_segments,
@@ -825,6 +836,10 @@ impl PlatformConfig {
             sev_snp,
             #[cfg(feature = "arm_rme")]
             arm_rme,
+            #[cfg(feature = "arm_rme")]
+            measurement_algo,
+            #[cfg(feature = "arm_rme")]
+            personalization_value,
         })
     }
 
@@ -3895,6 +3910,10 @@ mod tests {
             sev_snp: false,
             #[cfg(feature = "arm_rme")]
             arm_rme: false,
+            #[cfg(feature = "arm_rme")]
+            measurement_algo: None,
+            #[cfg(feature = "arm_rme")]
+            personalization_value: None,
         }
     }
 

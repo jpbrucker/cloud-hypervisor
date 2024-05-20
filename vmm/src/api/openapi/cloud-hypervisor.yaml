@@ -725,6 +725,10 @@ components:
         arm_rme:
           type: boolean
           default: false
+        measurement_algo:
+          type: string
+        personalization_value:
+          type: string
 
     MemoryZoneConfig:
       required:
