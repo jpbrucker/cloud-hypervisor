@@ -61,6 +61,9 @@ pub use vm::{
     Vm, VmOps,
 };
 
+#[cfg(feature = "arm_rme")]
+pub use vm::ArmRmeConfig;
+
 #[derive(Debug, Copy, Clone)]
 pub enum HypervisorType {
     #[cfg(feature = "kvm")]

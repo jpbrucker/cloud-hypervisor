@@ -1038,6 +1038,7 @@ dependencies = [
  "byteorder",
  "cfg-if",
  "env_logger",
+ "hex",
  "iced-x86",
  "igvm",
  "igvm_defs",
