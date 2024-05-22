@@ -487,6 +487,14 @@ fn create_app(default_vcpus: String, default_memory: String, default_rng: String
             .num_args(1)
             .group("vm-config"),
     );
+    #[cfg(feature = "arm_rme")]
+    let app = app.arg(
+        Arg::new("dtb")
+            .long("dtb")
+            .help("Generated device tree blob")
+            .num_args(1)
+            .group("vm-config"),
+    );
     app.arg(
         Arg::new("version")
             .short('V')
@@ -904,6 +912,8 @@ mod unit_tests {
                 igvm: None,
                 #[cfg(feature = "sev_snp")]
                 host_data: None,
+                #[cfg(feature = "arm_rme")]
+                dtb: None,
             }),
             rate_limit_groups: None,
             disks: None,

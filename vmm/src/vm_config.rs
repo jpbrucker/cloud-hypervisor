@@ -582,6 +582,9 @@ pub struct PayloadConfig {
     #[cfg(feature = "sev_snp")]
     #[serde(default)]
     pub host_data: Option<String>,
+    #[cfg(feature = "arm_rme")]
+    #[serde(default)]
+    pub dtb: Option<String>,
 }
 
 pub fn default_serial() -> ConsoleConfig {
