@@ -726,6 +726,9 @@ pub struct PayloadConfig {
     pub host_data: Option<String>,
     #[cfg(feature = "fw_cfg")]
     pub fw_cfg_config: Option<FwCfgConfig>,
+    #[cfg(feature = "arm_rmi")]
+    #[serde(default)]
+    pub dtb: Option<String>,
 }
 
 #[cfg(feature = "fw_cfg")]

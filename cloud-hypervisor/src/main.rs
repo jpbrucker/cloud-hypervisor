@@ -444,6 +444,12 @@ fn get_cli_options_sorted(
             .help(VdpaConfig::SYNTAX)
             .num_args(1..)
             .group("vm-config"),
+        #[cfg(feature = "arm_rmi")]
+        Arg::new("dtb")
+            .long("dtb")
+            .help("Generated device tree blob")
+            .num_args(1)
+            .group("vm-config"),
         Arg::new("version")
             .short('V')
             .long("version")
@@ -988,6 +994,8 @@ mod unit_tests {
                 host_data: None,
                 #[cfg(feature = "fw_cfg")]
                 fw_cfg_config: None,
+                #[cfg(feature = "arm_rmi")]
+                dtb: None,
             }),
             rate_limit_groups: None,
             disks: None,

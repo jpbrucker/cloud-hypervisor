@@ -419,6 +419,8 @@ pub struct VmParams<'a> {
     pub fw_cfg_config: Option<&'a str>,
     #[cfg(feature = "ivshmem")]
     pub ivshmem: Option<&'a str>,
+    #[cfg(feature = "arm_rmi")]
+    pub dtb: Option<&'a str>,
 }
 
 impl<'a> VmParams<'a> {
@@ -491,6 +493,9 @@ impl<'a> VmParams<'a> {
             args.get_one::<String>("fw-cfg-config").map(|x| x as &str);
         #[cfg(feature = "ivshmem")]
         let ivshmem: Option<&str> = args.get_one::<String>("ivshmem").map(|x| x as &str);
+
+        #[cfg(feature = "arm_rmi")]
+        let dtb = args.get_one::<String>("dtb").map(|x| x as &str);
         VmParams {
             cpus,
             memory,
@@ -534,6 +539,8 @@ impl<'a> VmParams<'a> {
             fw_cfg_config,
             #[cfg(feature = "ivshmem")]
             ivshmem,
+            #[cfg(feature = "arm_rmi")]
+            dtb,
         }
     }
 }
@@ -2978,6 +2985,8 @@ impl VmConfig {
                 host_data: vm_params.host_data.map(|s| s.to_string()),
                 #[cfg(feature = "fw_cfg")]
                 fw_cfg_config,
+                #[cfg(feature = "arm_rmi")]
+                dtb: vm_params.dtb.map(|s| s.to_string()),
             })
         } else {
             None
@@ -4145,6 +4154,8 @@ mod unit_tests {
                 ),
                 #[cfg(feature = "fw_cfg")]
                 fw_cfg_config: None,
+                #[cfg(feature = "arm_rmi")]
+                dtb: None,
             }),
             rate_limit_groups: None,
             disks: None,
