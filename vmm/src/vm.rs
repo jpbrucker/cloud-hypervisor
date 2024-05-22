@@ -294,6 +294,10 @@ pub enum Error {
     #[error("Invalid TDX payload type")]
     InvalidPayloadType,
 
+    #[cfg(feature = "arm_rme")]
+    #[error("Error creating Realm VM: {0}")]
+    CreateArmRme(#[source] hypervisor::HypervisorVmError),
+
     #[cfg(feature = "guest_debug")]
     #[error("Error debugging VM: {0:?}")]
     Debug(DebuggableError),
@@ -2336,7 +2340,9 @@ impl Vm {
 
         #[cfg(feature = "arm_rme")]
         if self.config.lock().unwrap().is_arm_rme_enabled() {
-            todo!("finalize realm");
+            self.vm
+                .arm_rme_realm_create()
+                .map_err(Error::CreateArmRme)?;
         }
 
         self.cpu_manager
