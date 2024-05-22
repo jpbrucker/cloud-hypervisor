@@ -106,6 +106,9 @@ mod kvm {
     pub const KVM_NMI: u64 = 0xae9a;
     pub const KVM_GET_NESTED_STATE: u64 = 3229658814;
     pub const KVM_SET_NESTED_STATE: u64 = 1082175167;
+    pub const KVM_SET_USER_MEMORY_REGION2: u64 = 0x40a0_ae49;
+    pub const KVM_CREATE_GUEST_MEMFD: u64 = 0xc040_aed4;
+    pub const KVM_SET_MEMORY_ATTRIBUTES: u64 = 0x4020_aed2;
 }
 
 // MSHV IOCTL code. This is unstable until the kernel code has been declared stable.
@@ -233,10 +236,18 @@ fn create_vmm_ioctl_seccomp_rule_common_kvm() -> Result<Vec<SeccompRule>, Backen
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_ONE_REG)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_REGS)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_USER_MEMORY_REGION,)?],
+        and![Cond::new(
+            1,
+            ArgLen::Dword,
+            Eq,
+            KVM_SET_USER_MEMORY_REGION2,
+        )?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_VCPU_EVENTS,)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_NMI)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_GET_NESTED_STATE)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_NESTED_STATE)?],
+        and![Cond::new(1, ArgLen::Dword, Eq, KVM_CREATE_GUEST_MEMFD)?],
+        and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_MEMORY_ATTRIBUTES)?],
     ])
 }
 
@@ -701,10 +712,17 @@ fn create_vcpu_ioctl_seccomp_rule_kvm() -> Result<Vec<SeccompRule>, BackendError
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_DEVICE_ATTR,)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_GSI_ROUTING,)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_USER_MEMORY_REGION,)?],
+        and![Cond::new(
+            1,
+            ArgLen::Dword,
+            Eq,
+            KVM_SET_USER_MEMORY_REGION2,
+        )?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_RUN,)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_NMI)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_GET_NESTED_STATE)?],
         and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_NESTED_STATE)?],
+        and![Cond::new(1, ArgLen::Dword, Eq, KVM_SET_MEMORY_ATTRIBUTES)?],
     ])
 }
 
@@ -803,6 +821,7 @@ fn vcpu_thread_rules(
         (libc::SYS_mprotect, vec![]),
         (libc::SYS_mremap, vec![]),
         (libc::SYS_munmap, vec![]),
+        (libc::SYS_fallocate, vec![]),
         (libc::SYS_nanosleep, vec![]),
         (libc::SYS_newfstatat, vec![]),
         #[cfg(target_arch = "x86_64")]
