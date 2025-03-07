@@ -674,6 +674,10 @@ pub enum DeviceManagerError {
     /// Disk resizing failed.
     #[error("Disk resize error")]
     DiskResize(#[source] virtio_devices::block::Error),
+
+    // Cannot use a vIOMMU (conflicts with internal remapping)
+    #[error("Cannot use a vIOMMU")]
+    UnsupportedIommu,
 }
 
 pub type DeviceManagerResult<T> = result::Result<T, DeviceManagerError>;
@@ -949,6 +953,56 @@ impl AccessPlatform for SevSnpPageAccessProxy {
             .gain_page_access(base, size as u32)
             .map_err(io::Error::other)?;
         Ok(base)
+    }
+}
+
+///
+/// On Arm CCA, the guest address space is split into top and bottom halves.
+/// Memory in the top half is shared with the host, while memory in the bottom
+/// half is private to the guest.
+///
+/// DMA from virtual devices accesses pages in the top half, that the guest
+/// shared with the host. Our representation of guest memory is the single merged
+/// half. ArmRmiSharedDma implements this DMA remapping between top-half GPA and
+/// RAM.
+///
+#[cfg(feature = "arm_rmi")]
+#[derive(Debug)]
+struct ArmRmiSharedDma {
+    address_mask: u64,
+}
+
+#[cfg(feature = "arm_rmi")]
+impl ArmRmiSharedDma {
+    /// Create a new DMA remapping object that converts addresses in the upper
+    /// half (above @address_mask) to RAM addresses.
+    fn new(address_mask: u64) -> ArmRmiSharedDma {
+        ArmRmiSharedDma { address_mask }
+    }
+}
+
+#[cfg(feature = "arm_rmi")]
+impl AccessPlatform for ArmRmiSharedDma {
+    fn translate_gpa(&self, base: u64, size: u64) -> std::result::Result<u64, std::io::Error> {
+        let gpa = base
+            .checked_add(self.address_mask + 1)
+            .ok_or(io::Error::new(
+                io::ErrorKind::Other,
+                format!("GPA 0x{base:x} -> GVA remapping overlows"),
+            ))?;
+
+        if gpa.checked_add(size - 1).is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("GPA 0x{base:x} -> GVA remapping overflows"),
+            ));
+        }
+        Ok(gpa)
+    }
+
+    fn translate_gva(&self, base: u64, _size: u64) -> std::result::Result<u64, std::io::Error> {
+        assert!(self.address_mask != 0);
+        Ok(base & self.address_mask)
     }
 }
 
@@ -4079,6 +4133,25 @@ impl DeviceManager {
         if self.config.lock().unwrap().is_sev_snp_enabled() {
             access_platform = Some(Arc::new(SevSnpPageAccessProxy::new(
                 self.address_manager.vm.clone(),
+            )));
+        }
+
+        #[cfg(feature = "arm_rmi")]
+        if self.config.lock().unwrap().is_arm_rmi_enabled() {
+            // TODO: We should model this as an IOMMU, so that we can create
+            // mappings for VFIO devices whenever the guest shares pages with
+            // us. We'll first need to abstract the IOMMU device, and then
+            // create a fake IOMMU device that does the DMA remapping, and
+            // propagate the RAM sharing notifications to this IOMMU device.
+            // Next step would be enabling a vIOMMU on top of this fake IOMMU.
+            //
+            // But for now, model this as a simple AccessPlatform remapper,
+            // which is good enough for virtio devices.
+            if access_platform.is_some() {
+                return Err(DeviceManagerError::UnsupportedIommu);
+            }
+            access_platform = Some(Arc::new(ArmRmiSharedDma::new(
+                (1 << (self.memory_manager.lock().unwrap().phys_bits + 1) as u64) - 1,
             )));
         }
 
