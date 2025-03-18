@@ -3475,11 +3475,14 @@ impl KvmVcpu {
     ///
     fn set_xsave(&self, xsave: &XsaveState) -> cpu::Result<()> {
         let xsave: kvm_bindings::kvm_xsave = (*xsave).clone().into();
-        self.fd
-            .lock()
-            .unwrap()
-            .set_xsave(&xsave)
-            .map_err(|e| cpu::HypervisorCpuError::SetXsaveState(e.into()))
+        // SAFETY: ??? See crate kvm commit bae8bc73a7f2 ("Mark `set_xsave()` unsafe")
+        unsafe {
+            self.fd
+                .lock()
+                .unwrap()
+                .set_xsave(&xsave)
+                .map_err(|e| cpu::HypervisorCpuError::SetXsaveState(e.into()))
+        }
     }
 
     #[cfg(target_arch = "x86_64")]
